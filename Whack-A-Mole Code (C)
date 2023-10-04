@@ -1,0 +1,634 @@
+/* ========================================
+ *
+ * Copyright YOUR COMPANY, THE YEAR
+ * All Rights Reserved
+ * UNPUBLISHED, LICENSED SOFTWARE.
+ *
+ * CONFIDENTIAL AND PROPRIETARY INFORMATION
+ * WHICH IS THE PROPERTY OF your company.
+ *
+ * ========================================
+*/
+#include "project.h"
+
+void start_game()  // Manages the startup speaker sequence
+{
+    float start1 = (1/256.0)/(0.000001);        // Startup sequence tones
+    float start2 = (1/369.994)/(0.000001);      // tone period / clock period
+    float start3 = (1/440.0)/(0.000001);
+    
+    SPEAKER_PWM_Start();    // Start the speaker PWM
+    SPEAKER_PWM_WritePeriod((int)start1);    // Set the speaker period to the first tone
+    SPEAKER_PWM_WriteCompare((int)start1/2); // Set the compare counter to half the 1st period
+    
+    CyDelay(130);
+    
+    SPEAKER_PWM_WritePeriod((int)start2);    // Set the speaker period to the second tone
+    SPEAKER_PWM_WriteCompare((int)start2/2); // Set the compare counter to half the 2nd period
+    
+    CyDelay(130);
+    
+    SPEAKER_PWM_WritePeriod((int)start3);    // Set the speaker period to the third tone
+    SPEAKER_PWM_WriteCompare((int)start3/2); // Set the compare counter to half the 3rd period
+    
+    CyDelay(130);
+    
+    SPEAKER_PWM_Stop();     // Stop the speaker PWM
+}
+
+volatile int timeout = 0;       // Timer flag for making the mole disappear
+extern volatile int C0_flag;    // Keypad column flags
+extern volatile int C1_flag;
+extern volatile int C2_flag;
+int i = 0;                              // Controls kepyad row strobing
+int score = 0;                          // Stores game score
+int whacked = 0;                        // Keeps track if the current mole has been whacked
+float miss = (1/100.0)/(0.000001);      // Tone for not pressing the right key
+float hit = (1/523.251)/(0.000001);     // Tone for pressing the right key (whacking the mole)
+
+int whack_poll(int led) {
+    SPEAKER_PWM_WritePeriod(0);    // Turns the speaker off
+    SPEAKER_PWM_WriteCompare(0);
+  
+    while((timeout == 0) && (whacked == 0))     // Manages the duration the mole is up
+    {
+        int j = i % 3;      // Controls switch variable, keeps it within 0 - 2
+        switch(j)           // Strobe the keypad rows
+        {
+            case 0:         // Top row is high, key presses in this row will be counted
+                KeyR0_Write(1);
+                KeyR1_Write(0);
+                KeyR2_Write(0);
+                break;
+            case 1:         // Middle row is high, key presses in this row will be counted
+                KeyR0_Write(0);
+                KeyR1_Write(1);
+                KeyR2_Write(0);
+                break;
+            case 2:         // Bottom row is high, key presses in this row will be counted
+                KeyR0_Write(0);
+                KeyR1_Write(0);
+                KeyR2_Write(1);
+                break;
+        }
+        
+        switch(led)     // Checks if the correct button is pressed for a given mole
+        {
+            case 0:     // For the top row, left-most column LED
+                if((KeyR0_Read() == 1) && (C0_flag == 1))   // If the top row is strobed and the correct button is pressed
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);    // Set the speaker period to the hit tone
+                    SPEAKER_PWM_WriteCompare((int)hit/2); // Set the compare counter to half the period
+                    
+                    C0_flag = 0;                          // Reset the column flag
+                    score = score + 400;                  // Increase the score
+                    whacked = 1;                          // Notes the mole as whacked, will not display it anymore
+                    
+                    CyDelay(50);                          // Delay so the speaker can actually play
+                    
+                    SPEAKER_PWM_WritePeriod(0);           // Turn off the speaker
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))  // If the incorrect button is pressed
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);    // Set the speaker period to the miss tone
+                    SPEAKER_PWM_WriteCompare((int)miss/2); // Set the compare counter to half the period
+                    
+                    CyDelay(50);                           // Delay so the speaker can play
+                    
+                    C0_flag = 0;                           // Reset the column flags
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);            // Turn off the speaker
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 1:     // For the top row, middle column LED
+                if((KeyR0_Read() == 1) && (C1_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C1_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 2:     // For the top row, rightmost column LED
+                if((KeyR0_Read() == 1) && (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C2_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 3:     // For the middle row, leftmost column LED
+                if((KeyR1_Read() == 1) && (C0_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C0_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 4:     // For the middle row, middle column LED
+                if((KeyR1_Read() == 1) && (C1_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C1_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 5:     // For the middle row, rightmost column LED
+                if((KeyR1_Read() == 1) && (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C2_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 6:     // For the bottom row, leftmost column LED
+                if((KeyR2_Read() == 1) && (C0_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C0_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 7:     // For the bottom row, middle column LED
+                if((KeyR2_Read() == 1) && (C1_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C1_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50); 
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+            case 8:     // For the bottom row, rightmost column LED
+                if((KeyR2_Read() == 1) && (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)hit);
+                    SPEAKER_PWM_WriteCompare((int)hit/2);
+                    
+                    C2_flag = 0;
+                    score = score + 400;
+                    whacked = 1;
+                    
+                    CyDelay(50);
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                else if((C0_flag == 1) || (C1_flag == 1) || (C2_flag == 1))
+                {
+                    SPEAKER_PWM_WritePeriod((int)miss);
+                    SPEAKER_PWM_WriteCompare((int)miss/2);
+                    
+                    CyDelay(50);
+                    
+                    C0_flag = 0;
+                    C1_flag = 0;
+                    C2_flag = 0;
+                    
+                    SPEAKER_PWM_WritePeriod(0);
+                    SPEAKER_PWM_WriteCompare(0);
+                }
+                break;
+        }
+        i++;                // Increase the row strobing control variable
+    }
+    
+    return whacked;
+}
+
+float led0 = 392.0;     // Notes for each LED when they turn on
+float led1 = 440.0;
+float led2 = 493.88;
+float led3 = 196.0;
+float led4 = 220.0;
+float led5 = 246.94;
+float led6 = 98.0;
+float led7 = 110.0;
+float led8 = 123.47;
+
+int rounds = 0;             // Keeps track of the current round
+
+void led_sel(int led, int dc, int delay)        // Turns on the appropriate LED from the random sequence
+{
+    whacked = 0;            // Resets the whacked flag
+    
+    TIMER_WriteCounter(0);      // Set the counter to 0
+    
+    if(rounds == 19)
+    {
+        TIMER_WritePeriod(500);   // Ensures the round ends without making the user wait the max timer length to see their score
+    }
+    else
+    {
+        TIMER_WritePeriod(delay);   // Set the length of time the mole is up for
+    }
+    
+    LED_PWM_WritePeriod(99);    // Set the LED PWM period, scales 0% - 100% without adjusting dc
+    LED_PWM_WriteCompare(dc);
+    
+    LedC0_Write(1);             // Make sure the columns are high - no LEDs will be on yet
+    LedC1_Write(1);
+    LedC2_Write(1);
+    
+    LED_PWM_Start();        // Start the LED PWM
+    TIMER_Start();          // Start the input timer
+    SPEAKER_PWM_Start();    // Start the speaker PWM
+    
+    switch(led)                     // Determine which LED row will be high and column low - turns on LED
+    {
+        case 0:     // Top row, leftmost column LED
+            LED_Control_Write(2);   // Writes the leftmost column high (board was wired at 90 deg and it's too much hassle to change)
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led0)/(0.000001)));        // Plays a note when the LED turns on, specific to this LED
+            SPEAKER_PWM_WriteCompare((int)(((1/led0)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(0);         // Writes the top row low to turn on the desired LED
+            LedC1_Write(1);         // Writes the middle row high to prevent these LEDs from turning on
+            LedC2_Write(1);         // Writes the bottom row to high to prevent these LEDs from turning on
+
+            break;
+        case 1:     // Top row, middle column LED
+            LED_Control_Write(1);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led1)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led1)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(0);
+            LedC1_Write(1);
+            LedC2_Write(1);
+            break;
+        case 2:     // Top row, rightmost column LED
+            LED_Control_Write(0);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led2)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led2)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(0);
+            LedC1_Write(1);
+            LedC2_Write(1);
+            break;
+        case 3:     // Middle row, leftmost column LED
+            LED_Control_Write(2);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led3)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led3)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(0);
+            LedC2_Write(1);
+            break;
+        case 4:     // Middle row, middle column LED
+            LED_Control_Write(1);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led4)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led4)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(0);
+            LedC2_Write(1);
+            break;
+        case 5:     // Middle row, rightmost column LED
+            LED_Control_Write(0);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led5)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led5)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(0);
+            LedC2_Write(1);
+            break;
+        case 6:     // Bottom row, leftmost column LED
+            LED_Control_Write(2);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led6)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led6)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(1);
+            LedC2_Write(0);
+            break;
+        case 7:     // Bottom row, middle column LED
+            LED_Control_Write(1);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led7)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led7)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(1);
+            LedC2_Write(0);
+            break;
+        case 8:     // Bottom row, rightmost column LED
+            LED_Control_Write(0);
+            
+            SPEAKER_PWM_WritePeriod((int)((1/led8)/(0.000001)));
+            SPEAKER_PWM_WriteCompare((int)(((1/led8)/(0.000001))/2));
+            
+            CyDelay(50);
+            
+            LedC0_Write(1);
+            LedC1_Write(1);
+            LedC2_Write(0);
+            break;
+    }
+        
+    SPEAKER_PWM_WritePeriod(0);    // Turns the speaker off
+    SPEAKER_PWM_WriteCompare(0);
+    
+    while(timeout == 0)
+    {  
+        whacked = whack_poll(led);    // Polls for LED press (We didn't realize that interrupts were harder to use until late in the code).
+                            // We can only know which key in a column is pressed when only one row is high, so we need to strobe
+                            // rows and poll columns. We could go back and remove the interrupts entirely, but it's more hassle
+                            // than it's worth
+        if(whacked == 1)
+        {
+            LED_PWM_Stop();     // Turns off the LED PWM if the mole is whacked
+        }
+    }
+    
+    TIMER_Stop();       // Stops the mole duration timer
+    
+    if(whacked == 0)
+    {
+        LED_PWM_Stop();     // Turns off the LED PWM if the mole wasn't whacked
+    }
+    
+    SPEAKER_PWM_Stop();
+    
+    timeout = 0;        // Reset the timeout flag
+    i = 0;              // Reset the strobing flag to prevent overflow if the game runs too long
+    
+    LedC0_Write(1);     // Write the columns high again to make sure no LEDs are on
+    LedC1_Write(1);
+    LedC2_Write(1);
+}
+
+int main(void)
+{
+    CyGlobalIntEnable; /* Enable global interrupts. */
+
+    LCD_Start();
+    
+    SPEAKER_PWM_Start();        // Turn on speaker PWM
+    SPEAKER_PWM_Stop();         // Stop speaker PWM
+    
+    LED_PWM_Start();            // Start LED PWM
+    LED_PWM_Stop();             // Turn off LED PWM
+    
+    TIMER_Start();              // Turn on timer
+    TIMER_Stop();               // Turn off timer
+    
+    KeyC0_ISR_Start();          // Start keypad column interrupts
+    KeyC1_ISR_Start();
+    KeyC2_ISR_Start();
+    
+    PRS_Start();                // Turn on the Pseudo-Random Sequence Generator
+    
+    INPUT_TIMER_ISR_Start();    // Start the input timer ISR
+        
+    int mole_info[60];          // Array containing 20 sets of led number, brightness, and duration
+    int mole_ctr = 0;           // Current number of moles in the game
+
+    int LED;                    // LED number generated by PRS
+    int brightness;             // Brightness value generated by PRS
+    int duration;               // Mole duration generated by PRS
+
+    int high_score = 0;         // Keeps track of the high score
+
+    for(;;)
+    {
+        KeyR2_Write(1);     // Write all rows high to accept an input on any key
+        KeyR1_Write(1);
+        KeyR0_Write(1);
+        
+        while((C0_flag == 0) && (C1_flag == 0) && (C2_flag == 0));  // Delay until the user presses a key
+        
+        LCD_ClearDisplay();
+        
+        C0_flag = 0;        // Reset the key column flag variables
+        C1_flag = 0;
+        C2_flag = 0;
+        
+        KeyR2_Write(0);     // Write the key rows low to avoid unwanted input
+        KeyR1_Write(0);
+        KeyR0_Write(0);
+        
+        start_game();       // Executes the start_game() function, plays the starting tones
+        
+        for(int i = 0; i < 60 ; i++)            // Reads the PRS 60 times
+        {
+            mole_info[i] = PRS_Read() % 100;    // Input a value, range 0-99, into the mole_info[] array
+            CyDelay(10);                        // Delay to avoid inputting multiples of the same value
+        }
+        
+        while(rounds < 20)      // For 20 rounds, do the following:
+        {
+            LED = mole_info[1+(3*mole_ctr)] % 9;                // LED number is the 1st, 4th, 7th ... number in array
+                                                                //      Max is 8, min is 0
+            brightness = (mole_info[2+(3*mole_ctr)] % 90) + 10; // Brightness is the 2nd, 5th, 8th ... number in the array
+                                                                //      Max is 99, min is 10
+            duration = (mole_info[3+(3*mole_ctr)]+20) * 25;     // Duration is the 3rd, 6th, 9th ... number in the array
+                                                                //  Max is 2.975s, min is 500ms
+            led_sel(LED, brightness, duration);                 // Executes the led_sel() function, turns on the appropriate LED
+            
+            mole_ctr++;         // Increase the number of moles seen by 1
+            rounds++;           // Increase the number of rounds finished by 1
+        }
+        
+        LCD_ClearDisplay();
+        
+        if(score > high_score)  // Updates the high score
+        {
+            high_score = score;
+        }
+        
+        LCD_Position(0,0);
+        LCD_PrintString("Score: ");
+        LCD_PrintNumber(score);             // Prints the score for the session
+        
+        LCD_Position(1,0);
+        LCD_PrintString("High Score: ");
+        LCD_PrintNumber(high_score);        // Prints the high score
+        
+        mole_ctr = 0;       // Reset the number of moles seen
+        rounds = 0;         // Reset the number of rounds finished
+        score = 0;          // Reset the session score
+        
+        C0_flag = 0;        // Reset the key column flags
+        C1_flag = 0;
+        C2_flag = 0;
+    }
+}
+
+/* [] END OF FILE */
